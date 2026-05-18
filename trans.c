@@ -3,6 +3,8 @@
 // be placed in the file, and deletes data previously in the file.
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
 // clientData structure definition
 struct clientData
 {
@@ -18,6 +20,7 @@ void textFile(FILE *readPtr);
 void updateRecord(FILE *fPtr);
 void newRecord(FILE *fPtr);
 void deleteRecord(FILE *fPtr);
+void displaySummary(FILE *fPtr);
 
 int main(int argc, char *argv[])
 {
@@ -32,7 +35,7 @@ int main(int argc, char *argv[])
     }
 
     // enable user to specify action
-    while ((choice = enterChoice()) != 5)
+    while ((choice = enterChoice()) != 6)
     {
         switch (choice)
         {
@@ -51,6 +54,10 @@ int main(int argc, char *argv[])
         // delete existing record
         case 4:
             deleteRecord(cfPtr);
+            break;
+        // display account summary/stats
+        case 5:
+            displaySummary(cfPtr);
             break;
         // display if user does not select valid choice
         default:
@@ -131,7 +138,7 @@ void updateRecord(FILE *fPtr)
 
         // move file pointer to correct record in file
         // move back by 1 record length
-        fseek(fPtr, -sizeof(struct clientData), SEEK_CUR);
+        fseek(fPtr, -(long)sizeof(struct clientData), SEEK_CUR);
         // write updated record over old record in file
         fwrite(&client, sizeof(struct clientData), 1, fPtr);
     } // end else
@@ -200,6 +207,88 @@ void newRecord(FILE *fPtr)
     } // end else
 } // end function newRecord
 
+// display account summary and statistics
+void displaySummary(FILE *fPtr)
+{
+    struct clientData client = {0, "", "", 0.0}; // current record
+    int result;                                  // fread result
+
+    // summary variables
+    int totalAccounts = 0;
+    double totalBalance = 0.0;
+    double highestBalance = 0.0;
+    double lowestBalance = 0.0;
+    int lowestSet = 0; // flag to track first valid record for lowest balance
+    struct clientData richest = {0, "", "", 0.0};
+    struct clientData poorest = {0, "", "", 0.0};
+    int debitCount = 0;   // accounts with negative balance
+    int creditCount = 0;  // accounts with positive balance
+    int zeroCount = 0;    // accounts with zero balance
+
+    rewind(fPtr); // start from beginning of file
+
+    // scan all records
+    while (!feof(fPtr))
+    {
+        result = fread(&client, sizeof(struct clientData), 1, fPtr);
+
+        if (result != 0 && client.acctNum != 0)
+        {
+            totalAccounts++;
+            totalBalance += client.balance;
+
+            // track highest balance
+            if (client.balance > highestBalance || totalAccounts == 1)
+            {
+                highestBalance = client.balance;
+                richest = client;
+            }
+
+            // track lowest balance
+            if (!lowestSet || client.balance < lowestBalance)
+            {
+                lowestBalance = client.balance;
+                poorest = client;
+                lowestSet = 1;
+            }
+
+            // categorize by balance
+            if (client.balance < 0.0)
+                debitCount++;
+            else if (client.balance > 0.0)
+                creditCount++;
+            else
+                zeroCount++;
+        }
+    }
+
+    // print summary report
+    printf("\n============================================\n");
+    printf("         ACCOUNT SUMMARY & STATISTICS\n");
+    printf("============================================\n");
+
+    if (totalAccounts == 0)
+    {
+        printf("  No active accounts found.\n");
+        printf("============================================\n");
+        return;
+    }
+
+    printf("  Total active accounts  : %d\n", totalAccounts);
+    printf("  Total balance          : $%10.2f\n", totalBalance);
+    printf("  Average balance        : $%10.2f\n", totalBalance / totalAccounts);
+    printf("--------------------------------------------\n");
+    printf("  Highest balance        : $%10.2f\n", highestBalance);
+    printf("    -> %s %s (Acct #%d)\n", richest.firstName, richest.lastName, richest.acctNum);
+    printf("  Lowest balance         : $%10.2f\n", lowestBalance);
+    printf("    -> %s %s (Acct #%d)\n", poorest.firstName, poorest.lastName, poorest.acctNum);
+    printf("--------------------------------------------\n");
+    printf("  Accounts in credit     : %d\n", creditCount);
+    printf("  Accounts in debit      : %d\n", debitCount);
+    printf("  Accounts at zero       : %d\n", zeroCount);
+    printf("============================================\n");
+} // end function displaySummary
+
 // enable user to input menu choice
 unsigned int enterChoice(void)
 {
@@ -211,7 +300,8 @@ unsigned int enterChoice(void)
                  "2 - update an account\n"
                  "3 - add a new account\n"
                  "4 - delete an account\n"
-                 "5 - end program\n? ");
+                 "5 - display account summary & statistics\n"
+                 "6 - end program\n? ");
 
     scanf("%u", &menuChoice); // receive choice from user
     return menuChoice;
